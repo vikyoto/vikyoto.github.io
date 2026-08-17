@@ -152,6 +152,19 @@
         .project-card.is-expanding.is-open > *:not(summary) { opacity: 1; }
         .project-card.is-collapsing > summary .group-open\:rotate-180 { transform: none; }
 
+        /* Workflow JSON viewer */
+        .workflow-json {
+            max-height: min(60vh, 420px);
+            overflow: auto;
+            overscroll-behavior: contain;
+            scrollbar-width: thin;
+            scrollbar-color: #2c3550 #020617;
+        }
+        .workflow-json::-webkit-scrollbar { width: 10px; height: 10px; }
+        .workflow-json::-webkit-scrollbar-track { background: #020617; border-radius: 8px; }
+        .workflow-json::-webkit-scrollbar-thumb { background: #2c3550; border-radius: 8px; }
+        .workflow-json::-webkit-scrollbar-thumb:hover { background: #3a4566; }
+
         /* Tech tags */
         .tech-tag {
             display: inline-flex;
@@ -348,7 +361,7 @@
 </div>
 </div>
 <div class="flex flex-wrap gap-4 justify-center items-center">
-<a class="bg-primary text-on-primary px-6 py-3.5 font-label-caps text-label-caps relative group transition-all duration-300 w-full sm:w-auto overflow-hidden" href="mailto:vihugoskat@hotmail.com">
+<a class="bg-primary text-on-primary px-6 py-3.5 font-label-caps text-label-caps relative group transition-all duration-300 w-full sm:w-auto overflow-hidden" href="#contato">
 <div class="absolute inset-0 bg-neon-glow opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 <span class="relative z-10 flex items-center justify-center gap-2">
 <span class="material-symbols-outlined text-[18px]">mail</span>
@@ -635,7 +648,7 @@
 <span class="material-symbols-outlined text-on-surface-variant group-open:rotate-180 transition-transform duration-300 shrink-0">expand_more</span>
 </summary>
 <div class="px-6 pb-6">
-<pre class="workflow-json bg-terminal-black border border-border-muted rounded-lg p-6 overflow-x-auto font-code-block text-code-block text-on-surface-variant"><code>{
+<pre class="workflow-json bg-terminal-black border border-border-muted rounded-lg p-6 font-code-block text-code-block text-on-surface-variant"><code>{
   "name": "FALHA_AO_BUSCAR_WORKFLOW",
   "nodes": []
 }</code></pre>
@@ -655,7 +668,7 @@
 <span class="material-symbols-outlined text-on-surface-variant group-open:rotate-180 transition-transform duration-300 shrink-0">expand_more</span>
 </summary>
 <div class="px-6 pb-6">
-<pre class="workflow-json bg-terminal-black border border-border-muted rounded-lg p-6 overflow-x-auto font-code-block text-code-block text-on-surface-variant"><code>{
+<pre class="workflow-json bg-terminal-black border border-border-muted rounded-lg p-6 font-code-block text-code-block text-on-surface-variant"><code>{
   "name": "FALHA_AO_BUSCAR_WORKFLOW",
   "nodes": []
 }</code></pre>
@@ -675,7 +688,7 @@
 <span class="material-symbols-outlined text-on-surface-variant group-open:rotate-180 transition-transform duration-300 shrink-0">expand_more</span>
 </summary>
 <div class="px-6 pb-6">
-<pre class="workflow-json bg-terminal-black border border-border-muted rounded-lg p-6 overflow-x-auto font-code-block text-code-block text-on-surface-variant"><code>{
+<pre class="workflow-json bg-terminal-black border border-border-muted rounded-lg p-6 font-code-block text-code-block text-on-surface-variant"><code>{
   "name": "FALHA_AO_BUSCAR_WORKFLOW",
   "nodes": []
 }</code></pre>
@@ -714,6 +727,7 @@
 </div>
 <p class="font-code-block text-[12px] text-secondary shrink-0">Curitiba, PR · 4+ anos</p>
 </div>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed mb-8">Backend, automação de processos e integração de sistemas de ponta a ponta — da arquitetura à sustentação em produção. Mais de 30 workflows em produção atendendo +50 clientes corporativos, com soluções de IA aplicada e integrações com CRM, WhatsApp e Telegram.</p>
 <div class="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
 <div>
 <p class="font-code-block text-label-caps text-primary uppercase tracking-widest mb-2">Experiência</p>
