@@ -1,0 +1,705 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        624,
+        176
+      ],
+      "id": "node-01",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "content": "# SEÇÃO 1- IDENTIFICA PEDIDOS\n\nSó processa pedidos que foram pedidos com frases de \"finalização com sucesso\"\n\n",
+        "height": 502,
+        "width": 652,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        560,
+        -16
+      ],
+      "typeVersion": 1,
+      "id": "node-02",
+      "name": "TÍTULO - CONSULTA DE DADOS10"
+    },
+    {
+      "parameters": {
+        "content": "# IDENTIFICA ETAPAS\n\nEtapas separadas por projetos\n\n",
+        "height": 502,
+        "width": 1788,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1216,
+        -16
+      ],
+      "typeVersion": 1,
+      "id": "node-03",
+      "name": "TÍTULO - CONSULTA DE DADOS"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "CONVERSATIONS",
+        "limit": 900,
+        "filterType": "string",
+        "filterString": "=state=eq.processed&product=in.(\"NOVA LINHA\",\"PORTABILIDADE\",\"VIVO FIBRA\",\"VIVO TOTAL\", \"TIM FIBRA\", \"FIBRA\")&createdAt=gte.{{ new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() }}"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        800,
+        176
+      ],
+      "id": "node-04",
+      "name": "OBTEM CONVERSAS DO BD2",
+      "alwaysOutputData": false,
+      "credentials": {
+        "supabaseApi": {
+          "id": "CREDENCIAL_REMOVIDA",
+          "name": "supabaseApi"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const FRASES_FINALIZACAO = [\n  'Fechamos seu pedido',\n  'O time técnico vai analisar a disponibilidade',\n  'nossa equipe entrará em contato em breve para confirmar',\n  'O seu pedido será analisado',\n  'a primeira fatura vem só no próximo mês',\n  'link por email e WhatsApp',\n  'Seu pedido foi registrado com sucesso',\n  'Pronto, registrei tudo aqui',\n  'Teu pedido já ta registrado aqui',\n  'a gente vai entrar em contato',\n  'vai receber um link',\n  'aceitar os termos e fechar o pedido',\n  'Então seu pedido está tudo certo' //FRASES B2C ATIVO ADICIONAR CONFORME NECESSIDADE, AS FRASES ACIMA SÃO VÁLIDAS PARA OS DEMAIS PROJETOS\n];\n\nconst items = $input.all();\nconst conversasFinalizadas = [];\n\nfor (const item of items) {\n  const transcript = item.json.transcript;\n\n  // ✅ transcript é um array de objetos {role, message}\n  const todasMensagens = Array.isArray(transcript)\n    ? transcript.map(t => t.message || '').join(' ')\n    : String(transcript || '');\n\n  const foiFinalizado = FRASES_FINALIZACAO.some(frase =>\n    todasMensagens.toLowerCase().includes(frase.toLowerCase())\n  );\n\n  if (foiFinalizado) {\n    conversasFinalizadas.push(item);\n  }\n}\n\n// Se nenhuma conversa foi finalizada, retorna array vazio com flag\nreturn conversasFinalizadas.length > 0\n  ? conversasFinalizadas\n  : [{ json: { nenhuma_finalizada: true } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        176
+      ],
+      "id": "node-05",
+      "name": "Identificador de Pedidos5"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =====================================================\n// FUNÇÕES UTILITÁRIAS\n// =====================================================\n\nfunction formatarData(dataString) {\n  if (!dataString) return 'N/A';\n\n  const data = new Date(dataString);\n\n  if (isNaN(data.getTime())) {\n    return 'N/A';\n  }\n\n  return data.toLocaleString('pt-BR', {\n    timeZone: 'America/Sao_Paulo',\n    day: '2-digit',\n    month: '2-digit',\n    year: 'numeric',\n    hour: '2-digit',\n    minute: '2-digit',\n    second: '2-digit'\n  });\n}\n\n\n// =====================================================\n// REPARAÇÃO DE ENCODING\n// =====================================================\n\nfunction repararEncoding(texto) {\n  if (texto === undefined || texto === null) {\n    return '';\n  }\n\n  const mapa = {\n    '茅': 'e',\n    '莽': 'c',\n    '茫': 'a',\n    '煤': 'u',\n    '铆': 'i',\n    '谩': 'a',\n    '锚': 'e',\n    '么': 'o',\n    '脡': 'E',\n    '脿': 'a',\n    '玫': 'o',\n    '莽玫': 'co',\n    '脰': 'O',\n    '盲': 'a',\n    '枚': 'o',\n    '茂': 'i',\n    '芒': 'a',\n    '讲': '',\n    '鈥': '-'\n  };\n\n  let resultado = String(texto);\n\n  for (const [corrompido, correto] of Object.entries(mapa)) {\n    resultado = resultado.split(corrompido).join(correto);\n  }\n\n  return resultado;\n}\n\n\n// =====================================================\n// NORMALIZAÇÃO DE TEXTO\n// =====================================================\n\nfunction normalizarTexto(texto) {\n  if (texto === undefined || texto === null) {\n    return '';\n  }\n\n  return repararEncoding(texto)\n    .toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\n\n// =====================================================\n// VERIFICA SE UM VALOR FOI REALMENTE INFORMADO\n// =====================================================\n\nfunction valorFoiInformado(valor) {\n  if (valor === undefined || valor === null) {\n    return false;\n  }\n\n  const texto = normalizarTexto(valor);\n\n  return ![\n    '',\n    'null',\n    'undefined',\n    'n/a',\n    'na',\n    'nao informado',\n    'nao informada',\n    'nao informado(a)',\n    'nao fornecido',\n    'nao fornecida',\n    'nao localizado',\n    'nao localizada',\n    'nao encontrado',\n    'nao encontrada'\n  ].includes(texto);\n}\n\n\n// =====================================================\n// OBTÉM O VALOR REAL DO CAMPO NO INTENDED GEMINI\n// =====================================================\n//\n// Alguns nomes usados no monitoramento são diferentes\n// dos nomes usados pelo intendedGemini.\n//\n// Exemplo:\n//\n// numero_portabilidade\n//       ↓\n// telefone_portabilidade\n//\n// qtd_linhas_port\n//       ↓\n// quantidade_linhas\n//\n// qtd_linhas_nova\n//       ↓\n// quantidade_linhas\n// =====================================================\n\nfunction obterValorCampo(campo, gemini) {\n\n  const MAPA_CAMPOS = {\n    'numero_portabilidade': 'telefone_portabilidade',\n    'qtd_linhas_port': 'quantidade_linhas',\n    'qtd_linhas_nova': 'quantidade_linhas'\n  };\n\n  const campoReal = MAPA_CAMPOS[campo] || campo;\n\n  return gemini[campoReal];\n}\n\n\n// =====================================================\n// RESOLVER VALOR DO NOME\n// =====================================================\n\nfunction resolverValor(campo, gemini, dadosN8n) {\n\n  if (campo === 'nome') {\n\n    const valores = [\n      dadosN8n.nomeChamada,\n      dadosN8n.nomeApi,\n      gemini.nome\n    ];\n\n    for (const valor of valores) {\n\n      if (valor === undefined || valor === null) {\n        continue;\n      }\n\n      const texto = normalizarTexto(valor);\n\n      if (\n        texto !== '' &&\n        texto !== 'nao informado' &&\n        texto !== 'null' &&\n        texto !== 'undefined'\n      ) {\n        return valor;\n      }\n    }\n\n    return null;\n  }\n\n  return gemini[campo] ?? null;\n}\n\n\n// =====================================================\n// PERGUNTAS POR CAMPO\n// =====================================================\n//\n// IMPORTANTE:\n// As palavras estão propositalmente sem acentos,\n// pois normalizarTexto() também remove acentos.\n//\n// =====================================================\n\nconst PERGUNTAS_POR_CAMPO = {\n\n  // ---------------------------------------------------\n  // NOME\n  // ---------------------------------------------------\n  'nome': [\n    ['quem', 'falo'],\n    ['seu', 'nome'],\n    ['qual', 'seu', 'nome'],\n    ['me', 'fala', 'seu', 'nome'],\n    ['me', 'passa', 'seu', 'nome']\n  ],\n\n\n  // ---------------------------------------------------\n  // CEP\n  // ---------------------------------------------------\n  'cep': [\n    ['cep'],\n    ['codigo', 'postal'],\n    ['me', 'passa', 'cep'],\n    ['me', 'fala', 'cep'],\n    ['qual', 'cep']\n  ],\n\n\n  // ---------------------------------------------------\n  // ENDEREÇO\n  // ---------------------------------------------------\n  'endereco': [\n    ['endereco'],\n    ['endereco', 'completo'],\n    ['rua', 'numero'],\n    ['rua', 'instalacao'],\n    ['numero', 'instalacao'],\n    ['local', 'instalacao'],\n    ['endereco', 'instalacao'],\n    ['numero', 'complemento'],\n    ['rua', 'complemento'],\n    ['logradouro', 'numero'],\n    ['logradouro'],\n    ['qual', 'endereco'],\n    ['me', 'fala', 'rua'],\n    ['me', 'passa', 'rua'],\n    ['me', 'fala', 'endereco'],\n    ['me', 'passa', 'endereco'],\n    ['qual', 'rua']\n  ],\n\n\n  // ---------------------------------------------------\n  // SKU / PLANO\n  // ---------------------------------------------------\n  'sku': [\n    ['plano'],\n    ['mega'],\n    ['giga'],\n    ['qual', 'plano'],\n    ['plano', 'escolhido'],\n    ['qual', 'plano', 'voce', 'quer'],\n    ['qual', 'plano', 'voce', 'deseja'],\n    ['me', 'fala', 'plano'],\n    ['me', 'passa', 'plano']\n  ],\n\n\n  // ---------------------------------------------------\n  // CPF\n  // ---------------------------------------------------\n  'cpf': [\n    ['cpf'],\n    ['numero', 'cpf'],\n    ['seu', 'cpf'],\n    ['me', 'passa', 'cpf'],\n    ['me', 'fala', 'cpf']\n  ],\n\n\n  // ---------------------------------------------------\n  // EMAIL\n  // ---------------------------------------------------\n  'email': [\n    ['email'],\n    ['e-mail'],\n    ['seu', 'email'],\n    ['me', 'passa', 'email'],\n    ['me', 'fala', 'email']\n  ],\n\n\n  // ---------------------------------------------------\n  // DIA DE VENCIMENTO\n  // ---------------------------------------------------\n  'dia_vencimento': [\n    ['vencimento'],\n    ['dia', 'fatura'],\n    ['dia', 'vencimento'],\n    ['qual', 'dia', 'vencimento'],\n    ['qual', 'dia', 'fatura'],\n    ['dia', 'voce', 'prefere'],\n    ['qual', 'data', 'vencimento']\n  ],\n\n\n  // ---------------------------------------------------\n  // DATA DE INSTALAÇÃO\n  // ---------------------------------------------------\n  'data_instalacao': [\n    ['instalacao'],\n    ['data', 'instalacao'],\n    ['data', 'turno'],\n    ['dia', 'instalacao'],\n    ['qual', 'data', 'instalacao'],\n    ['quando', 'instalar'],\n    ['quando', 'sera', 'instalacao']\n  ],\n\n\n  // ---------------------------------------------------\n  // TIPO DE ATENDIMENTO\n  // ---------------------------------------------------\n  'tipo_de_atendimento': [\n    ['tipo', 'atendimento'],\n    ['migracao'],\n    ['portabilidade'],\n    ['nova', 'linha'],\n    ['trazer', 'numero'],\n    ['outra', 'operadora'],\n    ['ja', 'tem', 'vivo'],\n    ['vai', 'trazer', 'numero'],\n    ['quer', 'trazer', 'numero']\n  ],\n\n\n  // ---------------------------------------------------\n  // NÚMERO VIVO\n  // ---------------------------------------------------\n  'numero_vivo': [\n    ['numero', 'vivo'],\n    ['seu', 'numero'],\n    ['telefone', 'vivo'],\n    ['numero', 'telefone'],\n    ['qual', 'numero', 'vivo'],\n    ['me', 'passa', 'numero', 'vivo'],\n    ['me', 'fala', 'numero', 'vivo']\n  ],\n\n\n  // ---------------------------------------------------\n  // NÚMERO DA PORTABILIDADE\n  // ---------------------------------------------------\n  //\n  // NÃO usamos:\n  //\n  // ['portabilidade']\n  // ['portar']\n  //\n  // porque são palavras genéricas demais.\n  //\n  // ---------------------------------------------------\n  'numero_portabilidade': [\n    ['numero', 'trazer'],\n    ['numero', 'portar'],\n    ['numero', 'ddd'],\n    ['numero', 'portabilidade'],\n    ['qual', 'numero'],\n    ['me', 'passa', 'numero'],\n    ['me', 'fala', 'numero'],\n    ['informe', 'numero'],\n    ['informa', 'numero'],\n    ['digite', 'numero']\n  ],\n\n\n  // ---------------------------------------------------\n  // CNPJ\n  // ---------------------------------------------------\n  'cnpj': [\n    ['cnpj'],\n    ['cnpj', 'empresa'],\n    ['numero', 'cnpj'],\n    ['seu', 'cnpj'],\n    ['me', 'passa', 'cnpj'],\n    ['me', 'fala', 'cnpj']\n  ],\n\n\n  // ---------------------------------------------------\n  // QUANTIDADE DE LINHAS - NOVA LINHA\n  // ---------------------------------------------------\n  'qtd_linhas_nova': [\n    ['quantas', 'linhas'],\n    ['linhas', 'contratar'],\n    ['quantas', 'contratar'],\n    ['linhas', 'novas'],\n    ['nova', 'linha'],\n    ['quer', 'contratar'],\n    ['quantidade', 'linhas'],\n    ['quantas', 'linhas', 'quer'],\n    ['quantas', 'linhas', 'deseja'],\n    ['quantas', 'linhas', 'vai']\n  ],\n\n\n  // ---------------------------------------------------\n  // QUANTIDADE DE LINHAS - PORTABILIDADE\n  // ---------------------------------------------------\n  'qtd_linhas_port': [\n    ['quais', 'numeros', 'quer', 'trazer'],\n    ['quantas', 'linhas'],\n    ['quantas', 'linhas', 'trazer'],\n    ['quantas', 'linhas', 'portabilidade'],\n    ['quantas', 'linhas', 'portar'],\n    ['quantidade', 'linhas'],\n    ['quantas', 'linhas', 'quer'],\n    ['quantas', 'linhas', 'deseja'],\n    ['quantas', 'linhas', 'vai', 'trazer'],\n    ['quantas', 'linhas', 'vai', 'portar']\n  ]\n};\n\n\n// =====================================================\n// VERIFICA SE UMA PERGUNTA FOI FEITA\n// =====================================================\n\nfunction perguntaFoiFeita(transcript, palavrasChave) {\n\n  if (!Array.isArray(transcript)) {\n    return false;\n  }\n\n  const mensagensAgente = transcript\n    .filter(t => t && t.role === 'agent')\n    .map(t => normalizarTexto(t.message || ''))\n    .filter(Boolean);\n\n  const palavrasNormalizadas = palavrasChave.map(palavra =>\n    normalizarTexto(palavra)\n  );\n\n  return mensagensAgente.some(mensagem =>\n    palavrasNormalizadas.every(palavra =>\n      mensagem.includes(palavra)\n    )\n  );\n}\n\n\n// =====================================================\n// VERIFICA TODAS AS VARIAÇÕES DE UMA PERGUNTA\n// =====================================================\n\nfunction verificarPergunta(transcript, campo) {\n\n  const conjuntos = PERGUNTAS_POR_CAMPO[campo];\n\n  if (!conjuntos) {\n    return false;\n  }\n\n  return conjuntos.some(palavrasChave =>\n    perguntaFoiFeita(transcript, palavrasChave)\n  );\n}\n\n\n// =====================================================\n// OBTÉM TODOS OS ITEMS DE ENTRADA\n// =====================================================\n\nconst items = $input.all();\n\n\n// =====================================================\n// PROTEÇÃO CONTRA RETORNO ESPECIAL DO NODE ANTERIOR\n// =====================================================\n\nif (\n  items.length > 0 &&\n  items.every(item =>\n    item &&\n    item.json &&\n    (\n      item.json.nenhum_novo === true ||\n      item.json.nenhuma_finalizada === true\n    )\n  )\n) {\n  return items;\n}\n\n\n// =====================================================\n// RESULTADO\n// =====================================================\n\nconst resultado = [];\n\n\n// =====================================================\n// AGENTES B2B\n// =====================================================\n\nconst AGENTES_B2B = [\n  'agent_EXEMPLO_06',\n  'agent_EXEMPLO_03',\n  'agent_EXEMPLO_02',\n  'agent_EXEMPLO_07',\n  'agent_EXEMPLO_05',\n  'agent_EXEMPLO_04'\n];\n\n\n// =====================================================\n// PROCESSAMENTO DE CADA CONVERSA\n// =====================================================\n\nfor (const item of items) {\n\n  const dados = item.json || {};\n\n  const gemini = dados.intendedGemini || {};\n\n  const dadosN8n = dados.dados_n8n || {};\n\n  const transcript = Array.isArray(dados.transcript)\n    ? dados.transcript\n    : [];\n\n  const agentId =\n    dados.agentId ||\n    dadosN8n.agentId ||\n    '';\n\n  const produto =\n    String(dadosN8n.product || gemini.produto || '')\n      .toUpperCase()\n      .trim();\n\n  const tipoAtendimento =\n    String(gemini.tipo_de_atendimento || '')\n      .toLowerCase()\n      .trim();\n\n\n  // ===================================================\n  // PEDIDO CONCLUÍDO\n  // ===================================================\n\n  const pedidoConcluido =\n    normalizarTexto(dadosN8n.pedidoconcluido || '') === 'sim';\n\n\n  // ===================================================\n  // CAMPOS OBRIGATÓRIOS\n  // ===================================================\n\n  let camposObrigatorios = [];\n\n\n  // ===================================================\n  // PORTABILIDADE B2B\n  // ===================================================\n\n  if (\n    produto === 'PORTABILIDADE' &&\n    AGENTES_B2B.includes(agentId)\n  ) {\n\n    camposObrigatorios = [\n      {\n        campo: 'nome',\n        label: 'Nome'\n      },\n      {\n        campo: 'sku',\n        label: 'Plano (SKU)'\n      },\n      {\n        campo: 'qtd_linhas_port',\n        label: 'Qtd Linhas Portabilidade'\n      },\n      {\n        campo: 'numero_portabilidade',\n        label: 'Número da Portabilidade'\n      },\n      {\n        campo: 'cnpj',\n        label: 'CNPJ'\n      },\n      {\n        campo: 'cpf',\n        label: 'CPF'\n      },\n      {\n        campo: 'email',\n        label: 'E-mail'\n      }\n    ];\n\n\n    // -------------------------------------------------\n    // AGENTE 6301\n    // NÃO EXIGE NOME\n    // -------------------------------------------------\n\n    if (\n      agentId ===\n      'agent_EXEMPLO_07'\n    ) {\n\n      camposObrigatorios =\n        camposObrigatorios.filter(\n          campo => campo.campo !== 'nome'\n        );\n    }\n  }\n\n\n  // ===================================================\n  // NOVA LINHA B2B\n  // ===================================================\n\n  else if (\n    produto === 'NOVA LINHA' &&\n    AGENTES_B2B.includes(agentId)\n  ) {\n\n    camposObrigatorios = [\n      {\n        campo: 'nome',\n        label: 'Nome'\n      },\n      {\n        campo: 'sku',\n        label: 'Plano (SKU)'\n      },\n      {\n        campo: 'qtd_linhas_nova',\n        label: 'Qtd Linhas Nova Linha'\n      },\n      {\n        campo: 'cnpj',\n        label: 'CNPJ'\n      },\n      {\n        campo: 'cpf',\n        label: 'CPF'\n      },\n      {\n        campo: 'email',\n        label: 'E-mail'\n      }\n    ];\n\n\n    // -------------------------------------------------\n    // AGENTE 6301\n    // NÃO EXIGE NOME\n    // -------------------------------------------------\n\n    if (\n      agentId ===\n      'agent_EXEMPLO_07'\n    ) {\n\n      camposObrigatorios =\n        camposObrigatorios.filter(\n          campo => campo.campo !== 'nome'\n        );\n    }\n  }\n\n\n  // ===================================================\n  // VIVO FIBRA / VIVO TOTAL\n  // ===================================================\n\n  else if (\n    produto === 'VIVO FIBRA' ||\n    produto === 'VIVO TOTAL'\n  ) {\n\n    camposObrigatorios = [\n      {\n        campo: 'sku',\n        label: 'Plano (SKU)'\n      },\n      {\n        campo: 'cep',\n        label: 'CEP'\n      },\n      {\n        campo: 'endereco',\n        label: 'Endereço'\n      },\n      {\n        campo: 'cpf',\n        label: 'CPF'\n      },\n      {\n        campo: 'dia_vencimento',\n        label: 'Dia de Vencimento'\n      },\n      {\n        campo: 'email',\n        label: 'E-mail'\n      },\n      {\n        campo: 'data_instalacao',\n        label: 'Data de Instalação'\n      }\n    ];\n\n\n    // -------------------------------------------------\n    // AGENTE RECEPTIVO\n    // EXIGE NOME\n    // -------------------------------------------------\n\n    if (\n      agentId ===\n      'agent_EXEMPLO_01'\n    ) {\n\n      camposObrigatorios.unshift({\n        campo: 'nome',\n        label: 'Nome'\n      });\n    }\n\n\n    // -------------------------------------------------\n    // VIVO TOTAL\n    // -------------------------------------------------\n\n    if (produto === 'VIVO TOTAL') {\n\n      camposObrigatorios.push({\n        campo: 'tipo_de_atendimento',\n        label: 'Tipo de Atendimento'\n      });\n\n\n      // -----------------------------------------------\n      // MIGRAÇÃO\n      // -----------------------------------------------\n\n      if (\n        tipoAtendimento.includes('migracao')\n      ) {\n\n        camposObrigatorios.push({\n          campo: 'numero_vivo',\n          label: 'Número Vivo'\n        });\n      }\n\n\n      // -----------------------------------------------\n      // PORTABILIDADE\n      // -----------------------------------------------\n\n      else if (\n        tipoAtendimento.includes('portabilidade')\n      ) {\n\n        camposObrigatorios.push({\n          campo: 'numero_portabilidade',\n          label: 'Número da Portabilidade'\n        });\n      }\n    }\n  }\n\n\n  // ===================================================\n  // PRODUTO FORA DO ESCOPO\n  // ===================================================\n\n  else {\n    continue;\n  }\n\n\n  // ===================================================\n  // VERIFICAÇÃO DOS CAMPOS\n  // ===================================================\n\n  const faltando = [];\n\n  const detalhes = [];\n\n\n  for (\n    const { campo, label }\n    of camposObrigatorios\n  ) {\n\n    // -----------------------------------------------\n    // A IA perguntou?\n    // -----------------------------------------------\n\n    const perguntou =\n      verificarPergunta(\n        transcript,\n        campo\n      );\n\n\n    // -----------------------------------------------\n    // Qual é o valor real no Gemini?\n    // -----------------------------------------------\n\n    const valor =\n      obterValorCampo(\n        campo,\n        gemini\n      );\n\n\n    // -----------------------------------------------\n    // O valor foi informado?\n    // -----------------------------------------------\n\n    const informado =\n      valorFoiInformado(valor);\n\n\n    // =================================================\n    // CASO 1\n    // IA NÃO PERGUNTOU\n    // =================================================\n\n    if (!perguntou) {\n\n      faltando.push(label);\n\n\n      if (!informado) {\n\n        detalhes.push(\n          `${label}: IA não perguntou e dado não informado`\n        );\n\n      } else {\n\n        detalhes.push(\n          `${label}: IA não perguntou`\n        );\n      }\n\n      continue;\n    }\n\n\n    // =================================================\n    // CASO 2\n    // IA PERGUNTOU, MAS DADO NÃO FOI INFORMADO\n    // =================================================\n\n    if (!informado) {\n\n      faltando.push(label);\n\n      detalhes.push(\n        `${label}: IA perguntou, mas dado não informado`\n      );\n\n      continue;\n    }\n\n\n    // =================================================\n    // CASO 3\n    // IA PERGUNTOU + DADO INFORMADO\n    // =================================================\n    //\n    // Campo considerado correto.\n    //\n    // Não fazemos nada.\n    //\n  }\n\n\n  // ===================================================\n  // ADICIONA RESULTADO\n  // ===================================================\n\n  resultado.push({\n\n    json: {\n\n      conversationId:\n        dados.conversationId,\n\n      id_registro:\n        dados.id,\n\n      pedido_concluido:\n        dadosN8n.pedidoconcluido || 'N/A',\n\n      nome_cliente:\n        resolverValor(\n          'nome',\n          gemini,\n          dadosN8n\n        ) || 'Não identificado',\n\n      agente_id:\n        agentId,\n\n      produto:\n        produto,\n\n      tipo_atendimento:\n        tipoAtendimento || 'N/A',\n\n      campos_faltando:\n        faltando.join(', '),\n\n      detalhes:\n        detalhes.join(' | '),\n\n      total_faltando:\n        faltando.length,\n\n      tem_pendencia:\n        faltando.length > 0,\n\n      data_conversa:\n        formatarData(\n          dados.createdAt\n        ),\n\n      link_conversa:\n        `https://app.elevenlabs.io/conversational-ai/conversations/${dados.conversationId}`,\n\n      verificado_em:\n        new Date().toLocaleString(\n          'pt-BR',\n          {\n            timeZone: 'America/Sao_Paulo'\n          }\n        )\n    }\n  });\n}\n\n\n// =====================================================\n// RETORNO\n// =====================================================\n//\n// IMPORTANTE:\n// O Code Node precisa retornar um array de items,\n// cada um contendo { json: {...} }.\n// =====================================================\n\nreturn resultado.length > 0\n  ? resultado\n  : [\n      {\n        json: {\n          sem_pendencias: true,\n          total_verificados: items.length\n        }\n      }\n    ];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        176
+      ],
+      "id": "node-06",
+      "name": "Dados obrigatórios5"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1760,
+        64
+      ],
+      "id": "node-07",
+      "name": "Loop",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "ad636085-6bd5-4f15-90c6-5f929f0e9790",
+              "leftValue": "={{ $json.conversationId }}",
+              "rightValue": "={{ $('Loop').item.json.conversationId }}",
+              "operator": {
+                "type": "string",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2240,
+        64
+      ],
+      "id": "node-08",
+      "name": "If3",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "SEU_SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "pulodeetapas-monitorV2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SEU_SPREADSHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "SEU_SHEET_GID",
+          "mode": "list",
+          "cachedResultName": "IDs_Processados",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/SEU_SPREADSHEET_ID/edit#gid=SEU_SHEET_GID"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "conversationId",
+              "lookupValue": "={{ $json.conversationId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2000,
+        80
+      ],
+      "id": "node-09",
+      "name": "Get row(s) in sheet1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CREDENCIAL_REMOVIDA",
+          "name": "googleSheetsOAuth2Api"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "4fc65799-138b-44eb-a500-25f897d41c95",
+              "leftValue": "={{ $json.total_faltando }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1424,
+        176
+      ],
+      "id": "node-10",
+      "name": "If2",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "SEU_SPREADSHEET_ID",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "SEU_SHEET_GID",
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversationId": "={{ $json.conversationId }}",
+            "verificado_em": "={{ $json.verificado_em }}",
+            "tinha_pendencia": "={{ $json.tem_pendencia }}"
+          },
+          "matchingColumns": [
+            "conversationId"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1904,
+        336
+      ],
+      "id": "node-11",
+      "name": "sem_pendencias",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CREDENCIAL_REMOVIDA",
+          "name": "googleSheetsOAuth2Api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "SEU_SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "pulodeetapas-monitorV2"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "SEU_SHEET_GID",
+          "mode": "list",
+          "cachedResultName": "IDs_Processados"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "conversationId": "={{ $('Loop').item.json.conversationId }}",
+            "verificado_em": "={{ $('Loop').item.json.verificado_em }}",
+            "tinha_pendencia": "={{ $('Loop').item.json.tem_pendencia }}"
+          },
+          "matchingColumns": [
+            "conversationId"
+          ],
+          "schema": [
+            {
+              "id": "conversationId",
+              "displayName": "conversationId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "verificado_em",
+              "displayName": "verificado_em",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tinha_pendencia",
+              "displayName": "tinha_pendencia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2864,
+        64
+      ],
+      "id": "node-12",
+      "name": "grava_ids_processados",
+      "alwaysOutputData": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CREDENCIAL_REMOVIDA",
+          "name": "googleSheetsOAuth2Api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "SEU_SPREADSHEET_ID",
+          "mode": "list",
+          "cachedResultName": "11labs-monitorV2"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Pêndencias"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID": "={{ $('Loop').item.json.id_registro }}",
+            "AgentID": "={{ $('Loop').item.json.agente_id }}",
+            "ConversationID": "={{ $('Loop').item.json.conversationId }}",
+            "Nome Cliente": "={{ $('Loop').item.json.nome_cliente }}",
+            "Campos Faltando": "={{ $('Loop').item.json.campos_faltando }}",
+            "Detalhes": "={{ $('Loop').item.json.detalhes }}",
+            "Pedido Concluido": "={{ $('Loop').item.json.pedido_concluido }}",
+            "Produto": "={{ $('Loop').item.json.produto }}",
+            "Data Conversa": "={{ $('Loop').item.json.data_conversa }}",
+            "Verificado Em": "={{ $('Loop').item.json.verificado_em }}"
+          },
+          "matchingColumns": [
+            "ID"
+          ],
+          "schema": [
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AgentID",
+              "displayName": "AgentID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ConversationID",
+              "displayName": "ConversationID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Nome Cliente",
+              "displayName": "Nome Cliente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Campos Faltando",
+              "displayName": "Campos Faltando",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Detalhes",
+              "displayName": "Detalhes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Pedido Concluido",
+              "displayName": "Pedido Concluido",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Produto",
+              "displayName": "Produto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Data Conversa",
+              "displayName": "Data Conversa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Verificado Em",
+              "displayName": "Verificado Em",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2704,
+        64
+      ],
+      "id": "node-13",
+      "name": "grava_pendencias",
+      "alwaysOutputData": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "CREDENCIAL_REMOVIDA",
+          "name": "googleSheetsOAuth2Api"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.z-api.io/instances/SUA_INSTANCIA/token/SEU_TOKEN/send-text",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Client-Token",
+              "value": "SEU_CLIENT_TOKEN"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{\n{\n  phone: \"SEU_GRUPO_WHATSAPP\",\n  message:\n`🚨 *ALERTA: PULO DE ETAPA IDENTIFICADO* 🚨\n\n🆔 ID da Conversa: ${$('Loop').item.json.conversationId}\n👤 ID do Agente: ${$('Loop').item.json.agente_id}\n✅ Pedido Concluído: ${$('Loop').item.json.pedido_concluido}\n📦 Produto: ${$('Loop').item.json.produto}\n📅 Data: ${$('Loop').item.json.data_conversa}\n⚠️ Total de campos vazio: ${$('Loop').item.json.total_faltando}\n⚠️ Campos Pulados: ${$('Loop').item.json.campos_faltando}\n⚠️ Detalhes: ${$('Loop').item.json.detalhes}\n🔗 ${$('Loop').item.json.link_conversa}`\n}\n}}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 3000
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2512,
+        128
+      ],
+      "id": "node-14",
+      "name": "Alerta WhatsApp"
+    },
+    {
+      "parameters": {
+        "chatId": "SEU_CHAT_ID",
+        "text": "=🚨 *ALERTA: PULO DE ETAPA IDENTIFICADO* 🚨  \n🆔 *ID da Conversa:* `{{ $('Loop').item.json.conversationId }}` 👤 *ID do Agente:* `{{ $('Loop').item.json.agente_id }}` \n✅ *Pedido Concluído:* {{ $('Loop').item.json.pedido_concluido }} \n📦 *Produto:* {{ $('Loop').item.json.produto }}\n📅 *Data:* {{ $('Loop').item.json.data_conversa }}\n⚠️ *Total de campos vazio:* {{ $('Loop').item.json.total_faltando }}\n⚠️ *Campos Pulados:* {{ $('Loop').item.json.campos_faltando }}\n⚠️ *Detalhes:* {{ $('Loop').item.json.detalhes }}\n🔗 [Acessar Transcrição Completa]({{ $('Loop').item.json.link_conversa }})",
+        "additionalFields": {
+          "parse_mode": "MarkdownV2"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2512,
+        -32
+      ],
+      "id": "node-15",
+      "name": "Send a text message1",
+      "alwaysOutputData": false,
+      "credentials": {
+        "telegramApi": {
+          "id": "CREDENCIAL_REMOVIDA",
+          "name": "telegramApi"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "OBTEM CONVERSAS DO BD2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OBTEM CONVERSAS DO BD2": {
+      "main": [
+        [
+          {
+            "node": "Identificador de Pedidos5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identificador de Pedidos5": {
+      "main": [
+        [
+          {
+            "node": "Dados obrigatórios5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados obrigatórios5": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Get row(s) in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "Alerta WhatsApp",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet1": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Loop",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "sem_pendencias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "grava_ids_processados": {
+      "main": [
+        [
+          {
+            "node": "Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "grava_pendencias": {
+      "main": [
+        [
+          {
+            "node": "grava_ids_processados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alerta WhatsApp": {
+      "main": [
+        []
+      ]
+    },
+    "Send a text message1": {
+      "main": [
+        [
+          {
+            "node": "grava_pendencias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

@@ -1,0 +1,434 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "execution-logger",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -48,
+        0
+      ],
+      "id": "7db230be-9f0f-43c1-8e0a-9db75b30d986",
+      "name": "Webhook",
+      "webhookId": "19a43049-842b-4bd0-9286-ed46e1d6300f"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "check-conv-id",
+              "leftValue": "={{ $json.data.resultData.runData['OBTEM CONVERSAS DO BD'][0].data.main[0][0].json.conversationId }}",
+              "rightValue": "conv",
+              "operator": {
+                "type": "string",
+                "operation": "startsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        864,
+        0
+      ],
+      "id": "b68671c4-ab3b-4f03-b7cb-fad8ca7a9e6f",
+      "name": "IF | Has conversationId"
+    },
+    {
+      "parameters": {
+        "resource": "execution",
+        "operation": "get",
+        "executionId": "={{ $json.body.execution_id }}",
+        "options": {
+          "activeWorkflows": true
+        },
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [
+        368,
+        0
+      ],
+      "id": "38f0c5d3-956d-46b2-81b1-553423841932",
+      "name": "Get an execution",
+      "credentials": {
+        "n8nApi": {
+          "id": "meuid",
+          "name": "API - N8N BACKUPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ✅ Processa TODOS os itens recebidos\nreturn $input.all().map(item => {\n  const execution = item.json;\n  const rawRunData = execution.data.resultData.runData;\n  const nodes = [];\n\n  for (const nodeName in rawRunData) {\n    const runs = rawRunData[nodeName];\n    runs.forEach(run => {\n      let nodeOutput = run.data?.main?.[0]?.[0]?.json || {};\n\n      if (nodeName !== 'OBTEM CONVERSAS DO BD') {\n        const { transcript, transcriptGemini, intendedGemini, ...rest } = nodeOutput;\n        nodeOutput = rest;\n      }\n\n      nodes.push({\n        name: nodeName,\n        status: run.executionStatus,\n        startTime: run.startTime,\n        executionTime: run.executionTime,\n        output: nodeOutput,\n        error: run.error || null\n      });\n    });\n  }\n\n  nodes.sort((a, b) => a.startTime - b.startTime);\n\n  const mainNodeData  = nodes.find(n => n.name === 'OBTEM CONVERSAS DO BD')?.output || {};\n  const valNodeData = nodes.find(n => n.output?.pedidoConcluido !== undefined)?.output || {};\n  const orderNodeData = nodes.find(n => n.name.includes('Order'))?.output || {};\n\n  // ✅ Retorna { json: ... } para cada item\n  return {\n    json: {\n      execution_id:        String(execution.id),\n      workflow_id:         execution.workflowId,\n      status:              execution.status,\n      conversation_id:     mainNodeData.conversationId || \"—\",\n      agent_id:            mainNodeData.agentId || \"—\",\n      order_id:            orderNodeData.orderId || \"—\",\n      pedido_concluido:    valNodeData.pedidoConcluido || \"nao\",\n      produto:             mainNodeData.product || \"—\",\n      call_duration_valid: String(mainNodeData.intendedGemini?.call_duration_valid || \"false\"),\n      execution_data:      { nodes }\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        -64
+      ],
+      "id": "968e2d4f-338b-48bd-a497-1dc24fd1f42b",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1264,
+        96
+      ],
+      "id": "da873b69-b7d5-4c7b-a82d-b6956b7c401b",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://urldobancodedados.com.br",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "on_conflict",
+              "value": "execution_id"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1440,
+        -64
+      ],
+      "id": "6a07920d-ae9a-48a2-bc6b-491d1107f200",
+      "name": "HTTP Request",
+      "credentials": {
+        "supabaseApi": {
+          "id": "Mf1vFYoJSyhXkcai",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        160,
+        0
+      ],
+      "id": "8d7226f0-ff90-42d9-a1de-98910ca5f702",
+      "name": "Wait",
+      "webhookId": "0bc9f751-15dd-46f1-bb36-24bc82b26a83"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items\n  .map(item => {\n    const exec = item.json;\n    if (!exec.startedAt || !exec.stoppedAt) return null;\n    const durationSec = (new Date(exec.stoppedAt) - new Date(exec.startedAt)) / 1000;\n    return { json: { ...exec, durationSec } };\n  })\n  .filter(item => item && item.json.durationSec > 8);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        -192
+      ],
+      "id": "789a5ac9-bae5-471a-b93f-75dc90b7d158",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "42ae9f04-63d9-4f92-a02a-024ca281987d",
+              "leftValue": "={{ $json.durationSec }}",
+              "rightValue": 15,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        768,
+        -192
+      ],
+      "id": "973e2dfb-44ad-4c65-acc5-167548d0aea2",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "mu0DGUpfuAo63l53W9x8e",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/mu0DGUpfuAo63l53W9x8e",
+          "cachedResultName": "Alerta Execuções +15sec"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        992,
+        -208
+      ],
+      "id": "0bf0b0f5-c1e0-4802-a9f0-72613b53f92b",
+      "name": "Call 'Alerta Execuções +15sec'"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ================= CONFIGURAÇÃO =================\nconst CONFIG = {\n  nodeName: 'N8N to Supabase',\n  fields: {\n    cpf: 'cpf',\n    cnpj: 'cnpj',\n    sku: 'sku',\n    email: 'email',\n    pedidoConcluido: 'pedidoconcluido'\n  }\n};\n\nconst VALORES_VAZIOS = ['0', 'não informado', 'nao informado', '', 'null', 'undefined'];\n\n// ================= HELPERS =================\nfunction normalizarTexto(texto) {\n  if (texto === undefined || texto === null) return '';\n  return String(texto)\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .trim()\n    .toLowerCase();\n}\n\nfunction preenchido(valor) {\n  if (valor === undefined || valor === null) return false;\n  return !VALORES_VAZIOS.includes(normalizarTexto(valor));\n}\n\nfunction getRunData(inputJson) {\n  if (inputJson?.data?.resultData?.runData) return inputJson.data.resultData.runData;\n  if (inputJson?.data?.data?.resultData?.runData) return inputJson.data.data.resultData.runData;\n  return {};\n}\n\nfunction getNodeOutput(runData, nodeName) {\n  const targetKey = Object.keys(runData).find(k => k.trim() === nodeName.trim());\n  if (!targetKey) return null;\n  return runData[targetKey]?.[0]?.data?.main?.[0]?.[0]?.json || null;\n}\n\n// ================= LEITURA DA EXECUÇÃO =================\nconst execution = $input.first().json;\nconst runData = getRunData(execution);\nconst nodeOutput = getNodeOutput(runData, CONFIG.nodeName);\n\nif (!nodeOutput) {\n  return [{\n    json: {\n      deveAlertar: false,\n      erro: `Node \"${CONFIG.nodeName}\" não encontrado no runData desta execução.`\n    }\n  }];\n}\n\nconst cpf = nodeOutput[CONFIG.fields.cpf];\nconst cnpj = nodeOutput[CONFIG.fields.cnpj];\nconst sku = nodeOutput[CONFIG.fields.sku];\nconst email = nodeOutput[CONFIG.fields.email];\nconst pedidoConcluido = nodeOutput[CONFIG.fields.pedidoConcluido];\n\n// ================= REGRAS DE VALIDAÇÃO =================\nconst temCpfOuCnpj = preenchido(cpf) || preenchido(cnpj);\nconst temSku = preenchido(sku);\nconst temEmail = preenchido(email);\nconst pedidoStatus = normalizarTexto(pedidoConcluido);\nconst pedidoNaoConcluido = pedidoStatus === 'nao' || pedidoStatus === 'não';\n\nconst deveAlertar = temCpfOuCnpj && temSku && temEmail && pedidoNaoConcluido; //temCpfOuCnpj && temSku && temEmail && \n\n// ================= EXTRAÇÃO & FORMATAÇÃO DA MENSAGEM =================\nconst executionId = execution.id || 'N/A';\nconst conversationId = nodeOutput.conversationId || 'N/A';\nconst orderId = nodeOutput.orderId || 'N/A';\nconst product = nodeOutput.product || 'N/A';\nconst agentId = nodeOutput.agentId || 'N/A';\nconst documento = preenchido(cpf) ? cpf : cnpj;\nconst tipoDocumento = preenchido(cpf) ? 'CPF' : 'CNPJ';\n\n// Monta a mensagem final formatada em HTML\nconst message = `⚠️ <b>Pedido não concluído com dados completos!</b>\n🆔 <b>Execution ID:</b> <code>${executionId}</code>\n💬 <b>Conversation ID:</b> <code>${conversationId}</code>\n📦 <b>Product:</b> ${product}\n🤖 <b>Agent ID:</b> <code>${agentId}</code>\n🧾 <b>${tipoDocumento}:</b> <code>${documento}</code>\n📦 <b>SKU:</b> <code>${sku}</code>\n📧 <b>Email:</b> <code>${email}</code>\n📋 <b>Pedido Concluído:</b> ${pedidoConcluido}`;\n\n// Retorna tudo limpo e estruturado\nreturn [{\n  json: {\n    deveAlertar,\n    executionId,\n    conversationId,\n    orderId,\n    product,\n    agentId,\n    documento,\n    tipoDocumento,\n    sku: sku ?? null,\n    email: email ?? null,\n    pedidoConcluido: pedidoConcluido ?? null,\n    criterios: { temCpfOuCnpj, temSku, temEmail, pedidoNaoConcluido },\n    message\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        176
+      ],
+      "id": "8a6313e5-c86d-40d9-8b15-5120fc6cfab3",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "42ae9f04-63d9-4f92-a02a-024ca281987d",
+              "leftValue": "={{ $json.deveAlertar }}",
+              "rightValue": 15,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        784,
+        176
+      ],
+      "id": "1a9282e8-0937-45fe-a634-02d6ef92a32d",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "7F9xGPzktc4GtWknUW5Y-",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/7F9xGPzktc4GtWknUW5Y-",
+          "cachedResultName": "Pedidos Nao concluidos"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1024,
+        160
+      ],
+      "id": "4a63306b-bac3-42e4-8af5-1fe8ba261855",
+      "name": "Call 'Pedido nao finalizado'"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF | Has conversationId": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get an execution": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "IF | Has conversationId",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Get an execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Call 'Alerta Execuções +15sec'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Call 'Pedido nao finalizado'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9e4f9cd4b54b5a1b1b983a9096a1a09dde20873db7e6233899e8c6a7c9ec9ce7"
+  }
+}

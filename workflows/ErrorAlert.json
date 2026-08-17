@@ -1,0 +1,104 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "02a8373c-eb4c-4751-9b24-b64075e806d1"
+    },
+    {
+      "parameters": {
+        "chatId": "-123456789",
+        "text": "={{$json.telegramMessage}}",
+        "additionalFields": {
+          "parse_mode": "MarkdownV2"
+        }
+      },
+      "name": "Envia Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        320,
+        0
+      ],
+      "id": "801043b5-2d51-4ad3-9fae-a76e05804cfd",
+      "webhookId": "890082b4-e768-4b5a-922d-a1a37b1338f6",
+      "credentials": {
+        "telegramApi": {
+          "id": "meuid",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const data = Array.isArray($json) ? $json[0] : $json;\n\n// Escape\nconst escapeMD = (text = \"\") =>\n  String(text)\n    .replace(/\\\\/g, \"\\\\\\\\\")\n    .replace(/[_*[\\]()~`>#+\\-=|{}.!:]/g, \"\\\\$&\");\n\n// Dados principais\nconst fluxo = escapeMD(data.workflow?.name || \"Desconhecido\");\n\nconst node = escapeMD(\n  data.execution?.error?.context?.nodeCause ||\n  data.execution?.error?.node?.name ||\n  data.execution?.lastNodeExecuted ||\n  \"Desconhecido\"\n);\n\n// ID da execução\nconst execIdBruto = data.execution?.id || \"\";\nconst exec = escapeMD(execIdBruto || \"N/A\");\n\n// IDs para montar o link correto\nconst workflowId = data.workflow?.id || \"\";\nconst executionId = execIdBruto;\n\n// Link real do editor\nconst linkReal = (workflowId && executionId)\n  ? `https://new-operadas-wf.macrolabs.app/workflow/${workflowId}/executions/${executionId}`\n  : \"N/A\";\n\n// Link escapado\nconst linkExec = escapeMD(linkReal);\n\n// Erro completo\nconst erroBruto =\n  data.execution?.error?.message ||\n  data.execution?.error?.context?.messageTemplate ||\n  data.execution?.error?.stack ||\n  \"Sem mensagem\";\n\nconst erro = escapeMD(erroBruto);\n\n// Hora\nconst dataHora = new Date().toLocaleString(\"pt-BR\").replace(\",\", \" -\");\nconst hora = escapeMD(dataHora);\n\n// Mensagem final\nreturn {\n  telegramMessage:\n`*ERRO NO N8N*\n\n*Fluxo:* ${fluxo}\n*Node:* ${node}\n*Execução:* ${exec}\n*Horário:* ${hora}\n\n*Detalhes do Erro:*\n\\`\\`\\`\n${erro}\n\\`\\`\\`\n\n*Link da Execução:*\n${linkExec}\n\nA execução deste fluxo foi interrompida ou apresentou inconsistências\\\\  \nrecomenda\\\\-se validação imediata do processo\\\\.`\n};"
+      },
+      "name": "Script Mensagem",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        0
+      ],
+      "id": "22e52ba7-1f6f-44a7-9c58-ce41d8bf9681"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ],
+      "id": "00d63408-597b-46b6-888e-c00f19e55e7b",
+      "name": "No Operation, do nothing"
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Script Mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia Telegram": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Script Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Envia Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9e4f9cd4b54b5a1b1b983a9096a1a09dde20873db7e6233899e8c6a7c9ec9ce7"
+  }
+}
