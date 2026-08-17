@@ -14,7 +14,6 @@ Portfolio pessoal de Victor Hugo Roth Romaniuk, especialista em Backend & Automa
 ```
 portfloio/
 ├── index.html          # Página principal do portfolio
-├── DESIGN.md           # Design system e especificações
 ├── README.md           # Este arquivo
 └── .github/
     └── workflows/
